@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
+import logging
 import pytz
 from airflow import DAG
 from airflow.hooks.base_hook import BaseHook
@@ -198,9 +199,10 @@ def email_function(**kwargs):
     latest_df = kwargs["ti"].xcom_pull(key="latest_df", task_ids="sync-shelter-to-esri")
     stats_df = kwargs["ti"].xcom_pull(key="stats_df", task_ids="sync-shelter-to-esri")
     exec_time = pd.Timestamp.now(tz="US/Pacific").strftime("%m-%d-%Y %I:%M%p")
-    latest_df["timestamp_local"] = latest_df.Timestamp.dt.tz_convert(local_tz).dt.strftime(
-        "%m-%d-%Y %I:%M%p"
-    )
+    logging.info(f"Time is {exec_time}")
+    latest_df["timestamp_local"] = latest_df.Timestamp.dt.tz_convert(
+        local_tz
+    ).dt.strftime("%m-%d-%Y %I:%M%p")
     tbl = np.array2string(
         latest_df.apply(format_table, axis=1).str.replace("\n", "").values
     )
@@ -223,15 +225,18 @@ def email_function(**kwargs):
     else:
         email_list = ["itadata@lacity.org"]
 
+    logging.info(f'Current email list is {email_list}')
     if len(email_list) > 50:
-        for sub_list in np.array_split(email_list, np.ceil(len(email_list)/50)):
+        for sub_list in np.array_split(email_list, np.ceil(len(email_list) / 50)):
             send_email(
-                to = ['itadata@lacity.org'],
+                to=["itadata@lacity.org"],
                 bcc=list(sub_list),
                 subject=f"""Shelter Stats for {exec_time}""",
                 html_content=email_template,
             )
+        logging.info(f"Group Email Run Confirmed")
     else:
+        logging.info(f"ITA Only Email Run Confirmed")
         send_email(
             to=email_list,
             subject=f"""Shelter Stats for {exec_time}""",
